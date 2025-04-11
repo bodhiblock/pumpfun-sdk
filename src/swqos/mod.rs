@@ -47,8 +47,8 @@ pub type FeeClient = dyn FeeClientTrait + Send + Sync + 'static;
 pub trait FeeClientTrait {
     async fn send_transaction(&self, transaction: &VersionedTransaction) -> Result<Signature>;
     async fn send_transactions(&self, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>>;
-    async fn get_tip_account(&self) -> Result<String>;
-    async fn get_client_type(&self) -> ClientType;
+    fn get_tip_account(&self) -> Result<String>;
+    fn get_client_type(&self) -> ClientType;
 }
 
 pub struct JitoClient {
@@ -66,7 +66,7 @@ impl FeeClientTrait for JitoClient {
         self.send_bundle_with_confirmation(transactions).await
     }
 
-    async fn get_tip_account(&self) -> Result<String, anyhow::Error> {
+    fn get_tip_account(&self) -> Result<String, anyhow::Error> {
         if let Some(acc) = JITO_TIP_ACCOUNTS.iter().choose(&mut rng()) {
             Ok(acc.to_string())
         } else {
@@ -74,7 +74,7 @@ impl FeeClientTrait for JitoClient {
         }
     }
 
-    async fn get_client_type(&self) -> ClientType {
+    fn get_client_type(&self) -> ClientType {
         ClientType::Jito
     }
 }
@@ -139,12 +139,12 @@ impl FeeClientTrait for NextBlockClient {
         self.send_transactions(transactions).await
     }
 
-    async fn get_tip_account(&self) -> Result<String> {
-        let tip_account = self.get_tip_account().await?;
+    fn get_tip_account(&self) -> Result<String> {
+        let tip_account = self.get_tip_account()?;
         Ok(tip_account)
     }
 
-    async fn get_client_type(&self) -> ClientType {
+    fn get_client_type(&self) -> ClientType {
         ClientType::NextBlock
     }
 }
@@ -237,7 +237,7 @@ impl NextBlockClient {
         Ok(signatures)
     }
 
-    async fn get_tip_account(&self) -> Result<String> {
+    fn get_tip_account(&self) -> Result<String> {
         let tip_account = *NEXTBLOCK_TIP_ACCOUNTS.choose(&mut rand::rng()).or_else(|| NEXTBLOCK_TIP_ACCOUNTS.first()).unwrap();
         Ok(tip_account.to_string())
     }
@@ -260,12 +260,12 @@ impl FeeClientTrait for ZeroSlotClient {
         self.send_transactions(transactions).await
     }
 
-    async fn get_tip_account(&self) -> Result<String> {
-        let tip_account = self.get_tip_account().await?;
+    fn get_tip_account(&self) -> Result<String> {
+        let tip_account = self.get_tip_account()?;
         Ok(tip_account)
     }
 
-    async fn get_client_type(&self) -> ClientType {
+    fn get_client_type(&self) -> ClientType {
         ClientType::ZeroSlot
     }
 }
@@ -328,7 +328,7 @@ impl ZeroSlotClient {
         Ok(signatures)
     }
 
-    async fn get_tip_account(&self) -> Result<String> {
+    fn get_tip_account(&self) -> Result<String> {
         let tip_account = *ZEROSLOT_TIP_ACCOUNTS.choose(&mut rand::rng()).or_else(|| NEXTBLOCK_TIP_ACCOUNTS.first()).unwrap();
         Ok(tip_account.to_string())
     }

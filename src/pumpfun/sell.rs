@@ -97,7 +97,7 @@ pub async fn sell_with_tip(
     for fee_client in fee_clients.clone() {
         let payer = payer.clone();
         let priority_fee = priority_fee.clone();
-        let tip_account = fee_client.get_tip_account().await.map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
 
         let transaction = build_sell_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash).await?;

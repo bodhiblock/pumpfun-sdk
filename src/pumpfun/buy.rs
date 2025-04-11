@@ -11,7 +11,7 @@ use crate::{common::{PriorityFee, SolanaRpcClient}, constants::{self, trade::DEF
 
 const MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT: u32 = 250000;
 
-use super::common::{calculate_with_slippage_buy, get_bonding_curve_account, get_global_account, get_initial_buy_price};
+use super::common::{calculate_with_slippage_buy, get_bonding_curve_account, get_global_account, get_global_account_cache, get_initial_buy_price};
 
 pub async fn buy(
     rpc: Arc<SolanaRpcClient>,
@@ -46,10 +46,62 @@ pub async fn buy_with_tip(
     for fee_client in fee_clients.clone() {
         let payer = payer.clone();
         let priority_fee = priority_fee.clone();
-        let tip_account = fee_client.get_tip_account().await.map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
 
-        let transaction = build_buy_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash).await?;
+        let transaction = build_buy_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash)?;
+        transactions.push(transaction);
+    }
+
+    let mut handles: Vec<JoinHandle<Result<(), anyhow::Error>>> = vec![];
+    for i in 0..fee_clients.len() {
+        let fee_client = fee_clients[i].clone();
+        let transactions = transactions.clone();
+        let start_time = start_time.clone();
+        let transaction = transactions[i].clone();
+        let handle = tokio::spawn(async move {
+           fee_client.send_transaction(&transaction).await?;
+            println!("index: {}, Total Jito buy operation time: {:?}ms", i, start_time.elapsed().as_millis());
+            Ok::<(), anyhow::Error>(())
+        });
+
+        handles.push(handle);        
+    }
+
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(_)) => (),
+            Ok(Err(e)) => println!("Error in task: {}", e),
+            Err(e) => println!("Task join error: {}", e),
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn buy_with_tip_ex(
+    fee_clients: Vec<Arc<FeeClient>>,
+    payer: Arc<Keypair>,
+    mint: Pubkey,
+    amount_sol: u64,
+    amount_token: u64,
+    slippage_basis_points: u64,
+    priority_fee: PriorityFee,
+    recent_blockhash: Hash,
+) -> Result<(), anyhow::Error> {
+    let start_time = Instant::now();
+
+    let mint = Arc::new(mint.clone());
+    let instructions = build_buy_instructions_ex(payer.clone(), mint.clone(), amount_sol, amount_token, slippage_basis_points)?;
+
+    let mut transactions = vec![];
+    for fee_client in fee_clients.clone() {
+        let payer = payer.clone();
+        let priority_fee = priority_fee.clone();
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
+
+        let transaction = build_buy_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash)?;
         transactions.push(transaction);
     }
 
@@ -107,7 +159,7 @@ pub async fn build_buy_transaction(
     Ok(transaction)
 }
 
-pub async fn build_buy_transaction_with_tip(
+pub fn build_buy_transaction_with_tip(
     tip_account: Arc<Pubkey>,
     payer: Arc<Keypair>,
     priority_fee: PriorityFee,  
@@ -171,6 +223,41 @@ pub async fn build_buy_instructions(
         &global_account.fee_recipient,
         instruction::Buy {
             _amount: buy_amount,
+            _max_sol_cost: buy_amount_with_slippage,
+        },
+    ));
+
+    Ok(instructions)
+}
+
+
+pub fn build_buy_instructions_ex(
+    payer: Arc<Keypair>,
+    mint: Arc<Pubkey>,
+    amount_sol: u64,
+    amount_token: u64,
+    slippage_basis_points: u64,
+) -> Result<Vec<Instruction>, anyhow::Error> {
+    if amount_sol == 0 {
+        return Err(anyhow!("Amount cannot be zero"));
+    }
+
+    let global_account = get_global_account_cache();
+    let buy_amount_with_slippage = calculate_with_slippage_buy(amount_sol, slippage_basis_points);
+    let mut instructions = vec![];
+    instructions.push(create_associated_token_account(
+        &payer.pubkey(),
+        &payer.pubkey(),
+        &mint,
+        &constants::accounts::TOKEN_PROGRAM,
+    ));
+
+    instructions.push(instruction::buy(
+        payer.as_ref(),
+        &mint,
+        &global_account.fee_recipient,
+        instruction::Buy {
+            _amount: amount_token,
             _max_sol_cost: buy_amount_with_slippage,
         },
     ));

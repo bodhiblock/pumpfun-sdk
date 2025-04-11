@@ -94,7 +94,7 @@ pub async fn create_and_buy_with_tip(
         let payer = payer.clone(); 
         let mint = mint.clone();
         let priority_fee = priority_fee.clone();
-        let tip_account = fee_client.get_tip_account().await.map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
         let build_instructions = build_instructions.clone();
 

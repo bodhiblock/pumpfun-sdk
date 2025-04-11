@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use spl_token::state::Account;
-use tokio::sync::RwLock;
+use std::sync::RwLock;
 use std::{collections::HashMap, sync::Arc};
 use solana_sdk::{
     commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction, instruction::Instruction, program_pack::Pack, pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction, transaction::Transaction
@@ -133,7 +133,7 @@ pub fn get_metadata_pda(mint: &Pubkey) -> Pubkey {
 #[inline]
 pub async fn get_global_account(rpc: &SolanaRpcClient) -> Result<Arc<accounts::GlobalAccount>, anyhow::Error> {
     let global = get_global_pda();
-    if let Some(account) = ACCOUNT_CACHE.read().await.get(&global) {
+    if let Some(account) = ACCOUNT_CACHE.read().unwrap().get(&global) {
         return Ok(account.clone());
     }
 
@@ -141,8 +141,14 @@ pub async fn get_global_account(rpc: &SolanaRpcClient) -> Result<Arc<accounts::G
     let global_account = bincode::deserialize::<accounts::GlobalAccount>(&account.data)?;
     let global_account = Arc::new(global_account);
 
-    ACCOUNT_CACHE.write().await.insert(global, global_account.clone());
+    ACCOUNT_CACHE.write().unwrap().insert(global, global_account.clone());
     Ok(global_account)
+}
+
+#[inline]
+pub fn get_global_account_cache() -> Arc<accounts::GlobalAccount> {
+    let global = get_global_pda();
+    ACCOUNT_CACHE.read().unwrap().get(&global).unwrap().clone()
 }
 
 #[inline]

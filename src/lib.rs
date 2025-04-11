@@ -10,6 +10,7 @@ pub mod pumpfun;
 
 use std::sync::Arc;
 
+use solana_hash::Hash;
 use swqos::{FeeClient, JitoClient, NextBlockClient, ZeroSlotClient};
 use rustls::crypto::{ring::default_provider, CryptoProvider};
 use solana_sdk::{
@@ -183,6 +184,26 @@ impl PumpFun {
             amount_sol,
             slippage_basis_points,
             self.priority_fee.clone(),
+        ).await
+    }
+
+    pub async fn buy_with_tip_ex(
+        &self,
+        mint: Pubkey,
+        amount_sol: u64,
+        amount_token: u64,
+        slippage_basis_points: u64,
+        recent_blockhash: Hash
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::buy::buy_with_tip_ex(
+            self.fee_clients.clone(),
+            self.payer.clone(),
+            mint,
+            amount_sol,
+            amount_token,
+            slippage_basis_points,
+            self.priority_fee.clone(),
+            recent_blockhash,
         ).await
     }
 
