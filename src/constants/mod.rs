@@ -34,11 +34,18 @@ pub mod accounts {
     /// Public key for the Pump.fun program
     pub const PUMPFUN: Pubkey = pubkey!("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
 
+    /// Public key for the Pump.fun AMM program
+    pub const PUMPFUN_AMM: Pubkey = pubkey!("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
+    pub const PUMPFUN_AMM_GLOBAL: Pubkey = pubkey!("ADyA8hdefvWN2dbGGWFotbzWxrAvLW83WG6QCVXvJKqw");
+    
     /// Public key for the MPL Token Metadata program
     pub const MPL_TOKEN_METADATA: Pubkey = pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
     /// Authority for program events
     pub const EVENT_AUTHORITY: Pubkey = pubkey!("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1");
+
+    /// Authority for program events
+    pub const EVENT_AUTHORITY_AMM: Pubkey = pubkey!("GS4CU59F31iL7aR2Q8zVS8DRrcRnXX1yjQ66TqNVQnaR");
 
     /// System Program ID
     pub const SYSTEM_PROGRAM: Pubkey = pubkey!("11111111111111111111111111111111");
@@ -46,6 +53,8 @@ pub mod accounts {
     /// Token Program ID
     pub const TOKEN_PROGRAM: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
+    pub const WSOL: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
+    
     /// Associated Token Program ID
     pub const ASSOCIATED_TOKEN_PROGRAM: Pubkey =
         pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");

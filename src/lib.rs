@@ -207,6 +207,61 @@ impl PumpFun {
         ).await
     }
 
+    pub async fn amm_buy(
+        &self,
+        mint: Pubkey,
+        amount_sol: u64,
+        slippage_basis_points: Option<u64>,
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::amm_buy::buy(
+            self.rpc.clone(),
+            self.payer.clone(),
+            mint,
+            amount_sol,
+            slippage_basis_points,
+            self.priority_fee.clone(),
+        ).await
+    }
+
+    pub async fn amm_buy_with_tip(
+        &self,
+        mint: Pubkey,
+        amount_sol: u64,
+        slippage_basis_points: Option<u64>,
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::amm_buy::buy_with_tip(
+            self.rpc.clone(),
+            self.fee_clients.clone(),
+            self.payer.clone(),
+            mint,
+            amount_sol,
+            slippage_basis_points,
+            self.priority_fee.clone(),
+        ).await
+    }
+
+    pub async fn amm_buy_with_tip_ex(
+        &self,
+        mint: Pubkey,
+        pool: Pubkey,
+        amount_sol: u64,
+        amount_token: u64,
+        slippage_basis_points: u64,
+        recent_blockhash: Hash,
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::amm_buy::buy_with_tip_ex(
+            self.fee_clients.clone(),
+            self.payer.clone(),
+            mint,
+            pool,
+            amount_sol,
+            amount_token,
+            slippage_basis_points,
+            self.priority_fee.clone(),
+            recent_blockhash
+        ).await
+    }
+
     /// Sell tokens
     pub async fn sell(
         &self,
