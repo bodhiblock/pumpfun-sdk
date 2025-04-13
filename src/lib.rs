@@ -331,6 +331,62 @@ impl PumpFun {
         ).await
     }
 
+    pub async fn amm_sell(
+        &self,
+        mint: Pubkey,
+        amount_token: Option<u64>,
+        slippage_basis_points: Option<u64>,
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::amm_sell::sell(
+            self.rpc.clone(),
+            self.payer.clone(),
+            mint,
+            amount_token,
+            slippage_basis_points,
+            self.priority_fee.clone(),
+        ).await
+    }
+
+    pub async fn amm_sell_by_percent(
+        &self,
+        mint: Pubkey,
+        percent: u64,
+        slippage_basis_points: Option<u64>,
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::amm_sell::sell_by_percent(
+            self.rpc.clone(),
+            self.payer.clone(),
+            mint,
+            percent,
+            slippage_basis_points,
+            self.priority_fee.clone(),
+        ).await
+    }
+
+    pub async fn amm_sell_with_tip_ex(
+        &self,
+        mint: Pubkey,
+        pool: Pubkey,
+        amount_token: u64,
+        amount_sol: u64,
+        close_mint_ata: bool,
+        slippage_basis_points: u64,
+        recent_blockhash: Hash,
+    ) -> Result<(), anyhow::Error> {
+        pumpfun::amm_sell::sell_with_tip(
+            self.fee_clients.clone(),
+            self.payer.clone(),
+            mint,
+            pool,
+            amount_token,
+            amount_sol,
+            close_mint_ata,
+            Some(slippage_basis_points),
+            self.priority_fee.clone(),
+            recent_blockhash
+        ).await
+    }
+
     #[inline]
     pub async fn tokens_subscription<F>(
         &self,

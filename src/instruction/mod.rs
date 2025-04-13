@@ -18,7 +18,7 @@ use crate::common::SolanaRpcClient;
 use crate::constants::accounts::{PUMPFUN_AMM_GLOBAL, WSOL};
 use crate::constants::trade::DEFAULT_SLIPPAGE;
 use crate::ipfs::TokenMetadataIPFS;
-use crate::pumpfun::common::{calculate_with_slippage_buy, calculate_with_slippage_sell, get_bonding_curve_account, get_buy_amount_with_slippage, get_global_account, get_initial_buy_price, get_token_balance, get_token_balance_and_ata};
+use crate::pumpfun::common::{calculate_with_slippage_buy, calculate_with_slippage_sell, get_bonding_curve_account, get_buy_amount_with_slippage, get_global_account, get_initial_buy_price};
 use crate::{
     constants, 
     pumpfun::common::{
@@ -256,6 +256,38 @@ pub fn sell(
     )
 }
 
+pub fn amm_sell(
+    payer: &Keypair,
+    mint: &Pubkey,
+    pool: &Pubkey,
+    fee_recipient: &Pubkey,
+    args: Sell,
+) -> Instruction {
+    Instruction::new_with_bytes(
+        constants::accounts::PUMPFUN_AMM,
+        &args.data(),
+        vec![
+            AccountMeta::new_readonly(*pool, false),
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(PUMPFUN_AMM_GLOBAL, false),
+            AccountMeta::new_readonly(*mint, false),
+            AccountMeta::new_readonly(WSOL, false),
+            AccountMeta::new(get_associated_token_address(&payer.pubkey(), mint), false),
+            AccountMeta::new(get_associated_token_address(&payer.pubkey(), &WSOL), false),
+            AccountMeta::new(get_associated_token_address(pool, mint), false),
+            AccountMeta::new(get_associated_token_address(pool, &WSOL), false),
+            AccountMeta::new_readonly(*fee_recipient, false),
+            AccountMeta::new(get_associated_token_address(fee_recipient, &WSOL), false),
+            AccountMeta::new_readonly(constants::accounts::TOKEN_PROGRAM, false),
+            AccountMeta::new_readonly(constants::accounts::TOKEN_PROGRAM, false),
+            AccountMeta::new_readonly(constants::accounts::SYSTEM_PROGRAM, false),
+            AccountMeta::new_readonly(constants::accounts::ASSOCIATED_TOKEN_PROGRAM, false),
+            AccountMeta::new_readonly(constants::accounts::EVENT_AUTHORITY_AMM, false),
+            AccountMeta::new_readonly(constants::accounts::PUMPFUN_AMM, false),
+        ],
+    )
+}
+
 pub async fn build_create_and_buy_instructions(
     rpc: Arc<SolanaRpcClient>,
     payer: Arc<Keypair>,
@@ -287,7 +319,6 @@ pub async fn build_create_and_buy_instructions(
         },
     ));
 
-    let ata = get_associated_token_address(&payer.pubkey(), &mint.pubkey());
     instructions.push(create_associated_token_account(
         &payer.pubkey(),
         &payer.pubkey(),
