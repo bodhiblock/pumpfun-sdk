@@ -1,18 +1,14 @@
 use anyhow::anyhow;
-use solana_client::rpc_config::RpcSimulateTransactionConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction, instruction::Instruction, message::{v0, VersionedMessage}, native_token::sol_to_lamports, pubkey::Pubkey, signature::{Keypair, Signature}, signer::Signer, system_instruction, transaction::{Transaction, VersionedTransaction}
+    compute_budget::ComputeBudgetInstruction, instruction::Instruction, message::{v0, VersionedMessage}, native_token::sol_to_lamports, pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction, transaction::{Transaction, VersionedTransaction}
 };
 use solana_hash::Hash;
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::instruction::close_account;
 use tokio::task::JoinHandle;
-
 use std::{str::FromStr, time::Instant, sync::Arc};
-
-use crate::{common::{PriorityFee, SolanaRpcClient}, constants::trade::{DEFAULT_COMPUTE_UNIT_PRICE, DEFAULT_SLIPPAGE}, instruction, swqos::FeeClient};
-
-use super::common::{calculate_with_slippage_sell, get_bonding_curve_account, get_global_account};
+use crate::{common::{PriorityFee, SolanaRpcClient}, constants::trade::DEFAULT_SLIPPAGE, instruction, swqos::FeeClient};
+use super::common::{calculate_with_slippage_sell, get_bonding_curve_account, get_global_account, get_global_account_cache};
 
 async fn get_token_balance(rpc: &SolanaRpcClient, payer: &Keypair, mint: &Pubkey) -> Result<(u64, Pubkey), anyhow::Error> {
     let ata = get_associated_token_address(&payer.pubkey(), mint);
@@ -100,7 +96,7 @@ pub async fn sell_with_tip(
         let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
 
-        let transaction = build_sell_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash).await?;
+        let transaction = build_sell_transaction_with_tip(&tip_account, &payer, priority_fee, instructions.clone(), recent_blockhash)?;
         transactions.push(transaction);
     }
 
@@ -129,6 +125,44 @@ pub async fn sell_with_tip(
     Ok(())
 }
 
+pub fn sell_with_tip_ex(
+    fee_clients: Vec<Arc<FeeClient>>,
+    payer: &Keypair,
+    mint: &Pubkey,
+    amount_token: u64,
+    amount_sol: u64,
+    close_mint_ata: bool,
+    slippage_basis_points: Option<u64>,
+    priority_fee: PriorityFee,
+    recent_blockhash: Hash,
+) -> Result<Vec<String>, anyhow::Error> {
+    let mut transactions = vec![];
+    let instructions = build_sell_instructions_ex(&payer, &mint, amount_token, amount_sol, close_mint_ata, slippage_basis_points)?;
+
+    for fee_client in fee_clients.clone() {
+        let priority_fee = priority_fee.clone();
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?;
+
+        let transaction = build_sell_transaction_with_tip(&tip_account, payer, priority_fee, instructions.clone(), recent_blockhash)?;
+        transactions.push(transaction);
+    }
+
+    let mut tx_hashs = vec![];
+    for i in 0..fee_clients.len() {
+        let fee_client = fee_clients[i].clone();
+        let transaction = transactions[i].clone();
+        let tx_hash = transaction.verify_and_hash_message()?.to_string();
+        log::info!("send sell tx: {} {:?} {}", mint, fee_client.get_client_type(), tx_hash);
+        tx_hashs.push(tx_hash);
+        tokio::spawn(async move {
+            fee_client.send_transaction(&transaction).await
+        });
+    }
+
+    Ok(tx_hashs)
+}
+
 pub async fn build_sell_transaction(
     rpc: Arc<SolanaRpcClient>,
     payer: Arc<Keypair>,
@@ -153,9 +187,9 @@ pub async fn build_sell_transaction(
     Ok(transaction)
 }
 
-pub async fn build_sell_transaction_with_tip(
-    tip_account: Arc<Pubkey>,
-    payer: Arc<Keypair>,
+pub fn build_sell_transaction_with_tip(
+    tip_account: &Pubkey,
+    payer: &Keypair,
     priority_fee: PriorityFee,
     build_instructions: Vec<Instruction>,
     blockhash: Hash,
@@ -224,6 +258,43 @@ pub async fn build_sell_instructions(
             &[&payer.pubkey()],
         )?
     ];
+
+    Ok(instructions)
+}
+
+pub fn build_sell_instructions_ex(
+    payer: &Keypair,
+    mint: &Pubkey,
+    amount_token: u64,
+    amount_sol: u64,
+    close_mint_ata: bool,
+    slippage_basis_points: Option<u64>,
+) -> Result<Vec<Instruction>, anyhow::Error> {
+    let global_account = get_global_account_cache();
+    let min_sol_output = calculate_with_slippage_sell(amount_sol,slippage_basis_points.unwrap_or(DEFAULT_SLIPPAGE));
+
+    let mut instructions = vec![
+        instruction::sell(
+            payer,
+            &mint,
+            &global_account.fee_recipient,
+            instruction::Sell {
+                _amount: amount_token,
+                _min_sol_output: min_sol_output,
+            },
+        ),
+    ];
+    
+    if close_mint_ata {
+        let mint_ata = get_associated_token_address(&payer.pubkey(), &mint);
+        instructions.push(close_account(
+            &spl_token::ID,
+            &mint_ata,
+            &payer.pubkey(),
+            &payer.pubkey(),
+            &[&payer.pubkey()],
+        )?);
+    }
 
     Ok(instructions)
 }

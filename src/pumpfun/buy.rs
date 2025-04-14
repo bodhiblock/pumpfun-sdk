@@ -79,7 +79,7 @@ pub async fn buy_with_tip(
     Ok(())
 }
 
-pub async fn buy_with_tip_ex(
+pub fn buy_with_tip_ex(
     fee_clients: Vec<Arc<FeeClient>>,
     payer: Arc<Keypair>,
     mint: Pubkey,
@@ -88,11 +88,9 @@ pub async fn buy_with_tip_ex(
     slippage_basis_points: u64,
     priority_fee: PriorityFee,
     recent_blockhash: Hash,
-) -> Result<(), anyhow::Error> {
-    let start_time = Instant::now();
-
+) -> Result<Vec<String>, anyhow::Error> {
     let mint = Arc::new(mint.clone());
-    let instructions = build_buy_instructions_ex(payer.clone(), mint.clone(), amount_sol, amount_token, slippage_basis_points)?;
+    let instructions = build_buy_instructions_ex(&payer, &mint, amount_sol, amount_token, slippage_basis_points)?;
 
     let mut transactions = vec![];
     for fee_client in fee_clients.clone() {
@@ -105,30 +103,19 @@ pub async fn buy_with_tip_ex(
         transactions.push(transaction);
     }
 
-    let mut handles: Vec<JoinHandle<Result<(), anyhow::Error>>> = vec![];
+    let mut tx_hashs = vec![];
     for i in 0..fee_clients.len() {
         let fee_client = fee_clients[i].clone();
-        let transactions = transactions.clone();
-        let start_time = start_time.clone();
         let transaction = transactions[i].clone();
-        let handle = tokio::spawn(async move {
-           fee_client.send_transaction(&transaction).await?;
-            println!("index: {}, Total Jito buy operation time: {:?}ms", i, start_time.elapsed().as_millis());
-            Ok::<(), anyhow::Error>(())
+        let tx_hash = transaction.verify_and_hash_message()?.to_string();
+        log::info!("send buy tx: {} {:?} {}", mint, fee_client.get_client_type(), tx_hash);
+        tx_hashs.push(tx_hash);
+        tokio::spawn(async move {
+            fee_client.send_transaction(&transaction).await
         });
-
-        handles.push(handle);        
     }
 
-    for handle in handles {
-        match handle.await {
-            Ok(Ok(_)) => (),
-            Ok(Err(e)) => println!("Error in task: {}", e),
-            Err(e) => println!("Task join error: {}", e),
-        }
-    }
-
-    Ok(())
+    Ok(tx_hashs)
 }
 
 pub async fn build_buy_transaction(
@@ -210,8 +197,8 @@ pub async fn build_buy_instructions(
     };
 
     build_buy_instructions_ex(
-        payer,
-        mint,
+        &payer,
+        &mint,
         amount_sol,
         buy_amount,
         slippage_basis_points.unwrap_or(DEFAULT_SLIPPAGE),
@@ -219,8 +206,8 @@ pub async fn build_buy_instructions(
 }
 
 pub fn build_buy_instructions_ex(
-    payer: Arc<Keypair>,
-    mint: Arc<Pubkey>,
+    payer: &Keypair,
+    mint: &Pubkey,
     amount_sol: u64,
     amount_token: u64,
     slippage_basis_points: u64,
@@ -235,13 +222,13 @@ pub fn build_buy_instructions_ex(
     instructions.push(create_associated_token_account_idempotent(
         &payer.pubkey(),
         &payer.pubkey(),
-        &mint,
+        mint,
         &constants::accounts::TOKEN_PROGRAM,
     ));
 
     instructions.push(instruction::buy(
-        payer.as_ref(),
-        &mint,
+        payer,
+        mint,
         &global_account.fee_recipient,
         instruction::Buy {
             _amount: amount_token,
