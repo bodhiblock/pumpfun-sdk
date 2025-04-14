@@ -240,7 +240,7 @@ impl PumpFun {
         ).await
     }
 
-    pub async fn amm_buy_with_tip_ex(
+    pub fn amm_buy_with_tip_ex(
         &self,
         mint: Pubkey,
         pool: Pubkey,
@@ -248,7 +248,7 @@ impl PumpFun {
         amount_token: u64,
         slippage_basis_points: u64,
         recent_blockhash: Hash,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<Vec<String>, anyhow::Error> {
         pumpfun::amm_buy::buy_with_tip_ex(
             self.fee_clients.clone(),
             self.payer.clone(),
@@ -259,7 +259,7 @@ impl PumpFun {
             slippage_basis_points,
             self.priority_fee.clone(),
             recent_blockhash
-        ).await
+        )
     }
 
     /// Sell tokens
@@ -385,7 +385,7 @@ impl PumpFun {
         ).await
     }
 
-    pub async fn amm_sell_with_tip_ex(
+    pub fn amm_sell_with_tip_ex(
         &self,
         mint: Pubkey,
         pool: Pubkey,
@@ -394,7 +394,7 @@ impl PumpFun {
         close_mint_ata: bool,
         slippage_basis_points: u64,
         recent_blockhash: Hash,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<Vec<String>, anyhow::Error> {
         pumpfun::amm_sell::sell_with_tip(
             self.fee_clients.clone(),
             self.payer.clone(),
@@ -406,7 +406,7 @@ impl PumpFun {
             Some(slippage_basis_points),
             self.priority_fee.clone(),
             recent_blockhash
-        ).await
+        )
     }
 
     #[inline]

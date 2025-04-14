@@ -1,6 +1,4 @@
-use super::common::{
-    amm_get_token_out, calculate_with_slippage_buy, get_amm_global_account_cache, get_amm_pool,
-};
+use super::common::{amm_get_token_out, calculate_with_slippage_buy, get_amm_global_account_cache, get_amm_pool};
 use crate::{
     common::{PriorityFee, SolanaRpcClient},
     constants::{self, accounts::WSOL, trade::DEFAULT_SLIPPAGE},
@@ -20,9 +18,7 @@ use solana_sdk::{
     system_instruction,
     transaction::{Transaction, VersionedTransaction},
 };
-use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account_idempotent,
-};
+use spl_associated_token_account::{get_associated_token_address, instruction::create_associated_token_account_idempotent};
 use spl_token::instruction::{close_account, sync_native};
 use std::{str::FromStr, sync::Arc, time::Instant};
 use tokio::task::JoinHandle;
@@ -37,15 +33,7 @@ pub async fn buy(
     slippage_basis_points: Option<u64>,
     priority_fee: PriorityFee,
 ) -> Result<(), anyhow::Error> {
-    let transaction = build_buy_transaction(
-        &rpc,
-        &payer,
-        &mint,
-        amount_sol,
-        slippage_basis_points,
-        priority_fee,
-    )
-    .await?;
+    let transaction = build_buy_transaction(&rpc, &payer, &mint, amount_sol, slippage_basis_points, priority_fee).await?;
     rpc.send_and_confirm_transaction(&transaction).await?;
     Ok(())
 }
@@ -63,33 +51,17 @@ pub async fn buy_with_tip(
 
     let mint = Arc::new(mint.clone());
     let (pool, _) = get_amm_pool(&rpc, &mint).await?;
-    let instructions = build_buy_instructions(
-        &rpc,
-        &payer,
-        &mint,
-        &pool,
-        amount_sol,
-        slippage_basis_points,
-    )
-    .await?;
+    let instructions = build_buy_instructions(&rpc, &payer, &mint, &pool, amount_sol, slippage_basis_points).await?;
 
     let mut transactions = vec![];
     let recent_blockhash = rpc.get_latest_blockhash().await?;
     for fee_client in fee_clients.clone() {
         let payer = payer.clone();
         let priority_fee = priority_fee.clone();
-        let tip_account = fee_client
-            .get_tip_account()
-            .map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
 
-        let transaction = build_buy_transaction_with_tip(
-            tip_account,
-            payer,
-            priority_fee,
-            instructions.clone(),
-            recent_blockhash,
-        )?;
+        let transaction = build_buy_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash)?;
         transactions.push(transaction);
     }
 
@@ -123,7 +95,7 @@ pub async fn buy_with_tip(
     Ok(())
 }
 
-pub async fn buy_with_tip_ex(
+pub fn buy_with_tip_ex(
     fee_clients: Vec<Arc<FeeClient>>,
     payer: Arc<Keypair>,
     mint: Pubkey,
@@ -133,67 +105,34 @@ pub async fn buy_with_tip_ex(
     slippage_basis_points: u64,
     priority_fee: PriorityFee,
     recent_blockhash: Hash,
-) -> Result<(), anyhow::Error> {
-    let start_time = Instant::now();
-
+) -> Result<Vec<String>, anyhow::Error> {
     let mint = Arc::new(mint.clone());
     let pool = Arc::new(pool.clone());
-    let instructions = build_buy_instructions_swap(
-        &payer,
-        &mint,
-        &pool,
-        amount_sol,
-        amount_token,
-        slippage_basis_points,
-    )?;
+    let instructions = build_buy_instructions_swap(&payer, &mint, &pool, amount_sol, amount_token, slippage_basis_points)?;
 
     let mut transactions = vec![];
     for fee_client in fee_clients.clone() {
         let payer = payer.clone();
         let priority_fee = priority_fee.clone();
-        let tip_account = fee_client
-            .get_tip_account()
-            .map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
 
-        let transaction = build_buy_transaction_with_tip(
-            tip_account,
-            payer,
-            priority_fee,
-            instructions.clone(),
-            recent_blockhash,
-        )?;
+        let transaction = build_buy_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash)?;
         transactions.push(transaction);
     }
 
-    let mut handles: Vec<JoinHandle<Result<(), anyhow::Error>>> = vec![];
+    let mut tx_hashs = vec![];
     for i in 0..fee_clients.len() {
         let fee_client = fee_clients[i].clone();
         let transactions = transactions.clone();
-        let start_time = start_time.clone();
         let transaction = transactions[i].clone();
-        let handle = tokio::spawn(async move {
-            fee_client.send_transaction(&transaction).await?;
-            println!(
-                "index: {}, Total Jito buy operation time: {:?}ms",
-                i,
-                start_time.elapsed().as_millis()
-            );
-            Ok::<(), anyhow::Error>(())
-        });
-
-        handles.push(handle);
+        let tx_hash = transaction.signatures[0].to_string();
+        log::info!("send amm buy tx: {} {:?} {}", mint, fee_client.get_client_type(), tx_hash);
+        tx_hashs.push(tx_hash);
+        tokio::spawn(async move { fee_client.send_transaction(&transaction).await });
     }
 
-    for handle in handles {
-        match handle.await {
-            Ok(Ok(_)) => (),
-            Ok(Err(e)) => println!("Error in task: {}", e),
-            Err(e) => println!("Task join error: {}", e),
-        }
-    }
-
-    Ok(())
+    Ok(tx_hashs)
 }
 
 pub async fn build_buy_transaction(
@@ -205,24 +144,16 @@ pub async fn build_buy_transaction(
     priority_fee: PriorityFee,
 ) -> Result<Transaction, anyhow::Error> {
     let mut instructions = vec![
-        ComputeBudgetInstruction::set_loaded_accounts_data_size_limit(
-            MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT,
-        ),
+        ComputeBudgetInstruction::set_loaded_accounts_data_size_limit(MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT),
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
         ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
     ];
     let (pool, _) = get_amm_pool(&rpc, &mint).await?;
-    let build_instructions =
-        build_buy_instructions(rpc, payer, mint, &pool, amount_sol, slippage_basis_points).await?;
+    let build_instructions = build_buy_instructions(rpc, payer, mint, &pool, amount_sol, slippage_basis_points).await?;
     instructions.extend(build_instructions);
 
     let recent_blockhash = rpc.get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
+    let transaction = Transaction::new_signed_with_payer(&instructions, Some(&payer.pubkey()), &[payer], recent_blockhash);
 
     Ok(transaction)
 }
@@ -235,22 +166,15 @@ pub fn build_buy_transaction_with_tip(
     blockhash: Hash,
 ) -> Result<VersionedTransaction, anyhow::Error> {
     let mut instructions = vec![
-        ComputeBudgetInstruction::set_loaded_accounts_data_size_limit(
-            MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT,
-        ),
+        ComputeBudgetInstruction::set_loaded_accounts_data_size_limit(MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT),
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
         ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
-        system_instruction::transfer(
-            &payer.pubkey(),
-            &tip_account,
-            sol_to_lamports(priority_fee.buy_tip_fee),
-        ),
+        system_instruction::transfer(&payer.pubkey(), &tip_account, sol_to_lamports(priority_fee.buy_tip_fee)),
     ];
 
     instructions.extend(build_instructions);
 
-    let v0_message: v0::Message =
-        v0::Message::try_compile(&payer.pubkey(), &instructions, &[], blockhash)?;
+    let v0_message: v0::Message = v0::Message::try_compile(&payer.pubkey(), &instructions, &[], blockhash)?;
     let versioned_message: VersionedMessage = VersionedMessage::V0(v0_message);
     let transaction = VersionedTransaction::try_new(versioned_message, &[&payer])?;
 
@@ -330,11 +254,7 @@ pub fn build_buy_instructions_swap(
     ));
 
     let wsol_ata = get_associated_token_address(&payer.pubkey(), &WSOL);
-    instructions.push(system_instruction::transfer(
-        &payer.pubkey(),
-        &wsol_ata,
-        amount_sol,
-    ));
+    instructions.push(system_instruction::transfer(&payer.pubkey(), &wsol_ata, amount_sol));
 
     instructions.push(sync_native(&spl_token::ID, &wsol_ata).unwrap());
 
@@ -349,16 +269,7 @@ pub fn build_buy_instructions_swap(
         },
     ));
 
-    instructions.push(
-        close_account(
-            &spl_token::ID,
-            &wsol_ata,
-            &payer.pubkey(),
-            &payer.pubkey(),
-            &[&payer.pubkey()],
-        )
-        .unwrap(),
-    );
+    instructions.push(close_account(&spl_token::ID, &wsol_ata, &payer.pubkey(), &payer.pubkey(), &[&payer.pubkey()]).unwrap());
 
     Ok(instructions)
 }

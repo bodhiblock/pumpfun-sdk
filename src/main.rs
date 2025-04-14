@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())  
 }
 
-async fn create_and_buy() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn create_and_buy() -> Result<(), Box<dyn std::error::Error>> {
     let priority_fee = PriorityFee{
         unit_limit: 72000,
         unit_price: 1000000,

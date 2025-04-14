@@ -107,7 +107,7 @@ pub fn buy_with_tip_ex(
     for i in 0..fee_clients.len() {
         let fee_client = fee_clients[i].clone();
         let transaction = transactions[i].clone();
-        let tx_hash = transaction.verify_and_hash_message()?.to_string();
+        let tx_hash = transaction.signatures[0].to_string();
         log::info!("send buy tx: {} {:?} {}", mint, fee_client.get_client_type(), tx_hash);
         tx_hashs.push(tx_hash);
         tokio::spawn(async move {

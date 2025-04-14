@@ -1,6 +1,4 @@
-use super::common::{
-    calculate_with_slippage_sell, get_amm_global_account_cache, get_amm_pool, get_token_balance,
-};
+use super::common::{calculate_with_slippage_sell, get_amm_global_account_cache, get_amm_pool, get_token_balance};
 use crate::{
     common::{PriorityFee, SolanaRpcClient},
     constants::{self, accounts::WSOL, trade::DEFAULT_SLIPPAGE},
@@ -21,12 +19,9 @@ use solana_sdk::{
     system_instruction,
     transaction::{Transaction, VersionedTransaction},
 };
-use spl_associated_token_account::{
-    get_associated_token_address, instruction::create_associated_token_account_idempotent,
-};
+use spl_associated_token_account::{get_associated_token_address, instruction::create_associated_token_account_idempotent};
 use spl_token::instruction::close_account;
-use std::{str::FromStr, sync::Arc, time::Instant};
-use tokio::task::JoinHandle;
+use std::{str::FromStr, sync::Arc};
 
 pub async fn sell(
     rpc: Arc<SolanaRpcClient>,
@@ -36,15 +31,7 @@ pub async fn sell(
     slippage_basis_points: Option<u64>,
     priority_fee: PriorityFee,
 ) -> Result<(), anyhow::Error> {
-    let transaction = build_sell_transaction(
-        &rpc,
-        &payer,
-        &mint,
-        amount_token,
-        slippage_basis_points,
-        priority_fee,
-    )
-    .await?;
+    let transaction = build_sell_transaction(&rpc, &payer, &mint, amount_token, slippage_basis_points, priority_fee).await?;
     rpc.send_and_confirm_transaction(&transaction).await?;
 
     Ok(())
@@ -64,18 +51,10 @@ pub async fn sell_by_percent(
 
     let balance_u64 = get_token_balance(rpc.as_ref(), &payer.pubkey(), &mint).await?;
     let amount = balance_u64 * percent / 100;
-    sell(
-        rpc,
-        payer,
-        mint,
-        Some(amount),
-        slippage_basis_points,
-        priority_fee,
-    )
-    .await
+    sell(rpc, payer, mint, Some(amount), slippage_basis_points, priority_fee).await
 }
 
-pub async fn sell_with_tip(
+pub fn sell_with_tip(
     fee_clients: Vec<Arc<FeeClient>>,
     payer: Arc<Keypair>,
     mint: Pubkey,
@@ -86,9 +65,7 @@ pub async fn sell_with_tip(
     slippage_basis_points: Option<u64>,
     priority_fee: PriorityFee,
     recent_blockhash: Hash,
-) -> Result<(), anyhow::Error> {
-    let start_time = Instant::now();
-
+) -> Result<Vec<String>, anyhow::Error> {
     let mut transactions = vec![];
     let instructions = build_sell_instructions_swap(
         &payer,
@@ -103,51 +80,24 @@ pub async fn sell_with_tip(
     for fee_client in fee_clients.clone() {
         let payer = payer.clone();
         let priority_fee = priority_fee.clone();
-        let tip_account = fee_client
-            .get_tip_account()
-            .map_err(|e| anyhow!(e.to_string()))?;
+        let tip_account = fee_client.get_tip_account().map_err(|e| anyhow!(e.to_string()))?;
         let tip_account = Arc::new(Pubkey::from_str(&tip_account).map_err(|e| anyhow!(e))?);
 
-        let transaction = build_sell_transaction_with_tip(
-            tip_account,
-            payer,
-            priority_fee,
-            instructions.clone(),
-            recent_blockhash,
-        )?;
+        let transaction = build_sell_transaction_with_tip(tip_account, payer, priority_fee, instructions.clone(), recent_blockhash)?;
         transactions.push(transaction);
     }
 
-    let mut handles = vec![];
+    let mut tx_hashs = vec![];
     for i in 0..fee_clients.len() {
         let fee_client = fee_clients[i].clone();
         let transaction = transactions[i].clone();
-        let handle: JoinHandle<Result<(), anyhow::Error>> = tokio::spawn(async move {
-            fee_client.send_transaction(&transaction).await?;
-            println!(
-                "index: {}, Total Jito sell operation time: {:?}ms",
-                i,
-                start_time.elapsed().as_millis()
-            );
-            Ok(())
-        });
-
-        handles.push(handle);
+        let tx_hash = transaction.signatures[0].to_string();
+        log::info!("send amm sell tx: {} {:?} {}", mint, fee_client.get_client_type(), tx_hash);
+        tx_hashs.push(tx_hash);
+        tokio::spawn(async move { fee_client.send_transaction(&transaction).await });
     }
 
-    for handle in handles {
-        match handle.await {
-            Ok(Ok(_)) => (),
-            Ok(Err(e)) => println!("Error in task: {}", e),
-            Err(e) => println!("Task join error: {}", e),
-        }
-    }
-
-    println!(
-        "Total Jito sell operation time: {:?}ms",
-        start_time.elapsed().as_millis()
-    );
-    Ok(())
+    Ok(tx_hashs)
 }
 
 pub async fn build_sell_transaction(
@@ -163,25 +113,12 @@ pub async fn build_sell_transaction(
         ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
     ];
     let (pool, _) = get_amm_pool(&rpc, &mint).await?;
-    let build_instructions = build_sell_instructions(
-        rpc,
-        payer,
-        &mint,
-        &pool,
-        amount_token,
-        slippage_basis_points,
-    )
-    .await?;
+    let build_instructions = build_sell_instructions(rpc, payer, &mint, &pool, amount_token, slippage_basis_points).await?;
 
     instructions.extend(build_instructions);
 
     let recent_blockhash = rpc.get_latest_blockhash().await?;
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
+    let transaction = Transaction::new_signed_with_payer(&instructions, Some(&payer.pubkey()), &[payer], recent_blockhash);
 
     Ok(transaction)
 }
@@ -196,17 +133,12 @@ pub fn build_sell_transaction_with_tip(
     let mut instructions = vec![
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
         ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
-        system_instruction::transfer(
-            &payer.pubkey(),
-            &tip_account,
-            sol_to_lamports(priority_fee.sell_tip_fee),
-        ),
+        system_instruction::transfer(&payer.pubkey(), &tip_account, sol_to_lamports(priority_fee.sell_tip_fee)),
     ];
 
     instructions.extend(build_instructions);
 
-    let v0_message: v0::Message =
-        v0::Message::try_compile(&payer.pubkey(), &instructions, &[], blockhash)?;
+    let v0_message: v0::Message = v0::Message::try_compile(&payer.pubkey(), &instructions, &[], blockhash)?;
     let versioned_message: VersionedMessage = VersionedMessage::V0(v0_message);
 
     let transaction = VersionedTransaction::try_new(versioned_message, &[&payer])?;
@@ -274,22 +206,14 @@ pub fn build_sell_instructions_swap(
         return Err(anyhow!("Amount cannot be zero"));
     }
 
-    let amount_sol = calculate_with_slippage_sell(
-        amount_sol,
-        slippage_basis_points.unwrap_or(DEFAULT_SLIPPAGE),
-    );
+    let amount_sol = calculate_with_slippage_sell(amount_sol, slippage_basis_points.unwrap_or(DEFAULT_SLIPPAGE));
 
     let mint_ata = get_associated_token_address(&payer.pubkey(), &mint);
     let wsol_ata = get_associated_token_address(&payer.pubkey(), &WSOL);
     let global_account = get_amm_global_account_cache();
 
     let mut instructions = vec![
-        create_associated_token_account_idempotent(
-            &payer.pubkey(),
-            &payer.pubkey(),
-            &WSOL,
-            &constants::accounts::TOKEN_PROGRAM,
-        ),
+        create_associated_token_account_idempotent(&payer.pubkey(), &payer.pubkey(), &WSOL, &constants::accounts::TOKEN_PROGRAM),
         instruction::amm_sell(
             payer,
             mint,
@@ -302,28 +226,10 @@ pub fn build_sell_instructions_swap(
         ),
     ];
 
-    instructions.push(
-        close_account(
-            &spl_token::ID,
-            &wsol_ata,
-            &payer.pubkey(),
-            &payer.pubkey(),
-            &[&payer.pubkey()],
-        )
-        .unwrap(),
-    );
+    instructions.push(close_account(&spl_token::ID, &wsol_ata, &payer.pubkey(), &payer.pubkey(), &[&payer.pubkey()]).unwrap());
 
     if close_mint_ata {
-        instructions.push(
-            close_account(
-                &spl_token::ID,
-                &mint_ata,
-                &payer.pubkey(),
-                &payer.pubkey(),
-                &[&payer.pubkey()],
-            )
-            .unwrap(),
-        );
+        instructions.push(close_account(&spl_token::ID, &mint_ata, &payer.pubkey(), &payer.pubkey(), &[&payer.pubkey()]).unwrap());
     }
 
     Ok(instructions)
