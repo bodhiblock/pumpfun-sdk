@@ -132,12 +132,12 @@ pub fn sell_with_tip_ex(
     amount_token: u64,
     amount_sol: u64,
     close_mint_ata: bool,
-    slippage_basis_points: Option<u64>,
+    slippage_basis_points: u64,
     priority_fee: PriorityFee,
     recent_blockhash: Hash,
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut transactions = vec![];
-    let instructions = build_sell_instructions_ex(&payer, &mint, amount_token, amount_sol, close_mint_ata, slippage_basis_points)?;
+    let instructions = build_sell_instructions_ex(&payer, &mint, amount_token, amount_sol, close_mint_ata, Some(slippage_basis_points))?;
 
     for fee_client in fee_clients.clone() {
         let priority_fee = priority_fee.clone();

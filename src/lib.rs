@@ -193,7 +193,8 @@ impl PumpFun {
         amount_sol: u64,
         amount_token: u64,
         slippage_basis_points: u64,
-        recent_blockhash: Hash
+        recent_blockhash: Hash,
+        priority_fee: Option<PriorityFee>,
     ) -> Result<Vec<String>, anyhow::Error> {
         pumpfun::buy::buy_with_tip_ex(
             self.fee_clients.clone(),
@@ -202,7 +203,7 @@ impl PumpFun {
             amount_sol,
             amount_token,
             slippage_basis_points,
-            self.priority_fee.clone(),
+            priority_fee.unwrap_or(self.priority_fee.clone()),
             recent_blockhash,
         )
     }
@@ -248,6 +249,7 @@ impl PumpFun {
         amount_token: u64,
         slippage_basis_points: u64,
         recent_blockhash: Hash,
+        priority_fee: Option<PriorityFee>,
     ) -> Result<Vec<String>, anyhow::Error> {
         pumpfun::amm_buy::buy_with_tip_ex(
             self.fee_clients.clone(),
@@ -257,7 +259,7 @@ impl PumpFun {
             amount_sol,
             amount_token,
             slippage_basis_points,
-            self.priority_fee.clone(),
+            priority_fee.unwrap_or(self.priority_fee.clone()),
             recent_blockhash
         )
     }
@@ -337,8 +339,9 @@ impl PumpFun {
         amount_token: u64,
         amount_sol: u64,
         close_mint_ata: bool,
-        slippage_basis_points: Option<u64>,
+        slippage_basis_points: u64,
         recent_blockhash: Hash,
+        priority_fee: Option<PriorityFee>,
     ) -> Result<Vec<String>, anyhow::Error> {
         pumpfun::sell::sell_with_tip_ex(
             self.fee_clients.clone(),
@@ -348,7 +351,7 @@ impl PumpFun {
             amount_sol,
             close_mint_ata,
             slippage_basis_points,
-            self.priority_fee.clone(),
+            priority_fee.unwrap_or(self.priority_fee.clone()),
             recent_blockhash,
         )
     }
@@ -394,6 +397,7 @@ impl PumpFun {
         close_mint_ata: bool,
         slippage_basis_points: u64,
         recent_blockhash: Hash,
+        priority_fee: Option<PriorityFee>,
     ) -> Result<Vec<String>, anyhow::Error> {
         pumpfun::amm_sell::sell_with_tip(
             self.fee_clients.clone(),
@@ -404,7 +408,7 @@ impl PumpFun {
             amount_sol,
             close_mint_ata,
             Some(slippage_basis_points),
-            self.priority_fee.clone(),
+            priority_fee.unwrap_or(self.priority_fee.clone()),
             recent_blockhash
         )
     }
