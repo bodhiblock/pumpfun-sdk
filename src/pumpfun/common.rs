@@ -204,7 +204,7 @@ pub async fn get_amm_global_account(
     }
 
     let account = rpc.get_account(&PUMPFUN_AMM_GLOBAL).await?;
-    let global_account = accounts::AMMGlobalAccount::try_from_slice(&account.data)?;
+    let global_account = bincode::deserialize::<accounts::AMMGlobalAccount>(&account.data)?;
     let global_account = Arc::new(global_account);
 
     AMM_GLOBAL_ACCOUNT.set(global_account.clone()).unwrap();
