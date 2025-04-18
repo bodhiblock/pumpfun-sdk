@@ -1,7 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Default)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Default, Serialize, Deserialize)]
 pub struct AMMGlobalAccount {
     pub discriminator: u64,
     pub admin: Pubkey,
