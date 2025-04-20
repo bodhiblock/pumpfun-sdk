@@ -154,17 +154,12 @@ pub fn build_buy_transaction_with_tip(
     blockhash: Hash,
 ) -> Result<VersionedTransaction, anyhow::Error> {
     let mut instructions = vec![
-        ComputeBudgetInstruction::set_loaded_accounts_data_size_limit(MAX_LOADED_ACCOUNTS_DATA_SIZE_LIMIT),
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
         ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
-        system_instruction::transfer(
-            &payer.pubkey(),
-            &tip_account,
-            sol_to_lamports(priority_fee.buy_tip_fee),
-        ),
     ];
 
     instructions.extend(build_instructions);
+    instructions.push(system_instruction::transfer(&payer.pubkey(), &tip_account, sol_to_lamports(priority_fee.buy_tip_fee)));
 
     let v0_message: v0::Message =
         v0::Message::try_compile(&payer.pubkey(), &instructions, &[], blockhash)?;

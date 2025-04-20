@@ -197,14 +197,10 @@ pub fn build_sell_transaction_with_tip(
     let mut instructions = vec![
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
         ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
-        system_instruction::transfer(
-            &payer.pubkey(),
-            &tip_account,
-            sol_to_lamports(priority_fee.sell_tip_fee),
-        ),
     ];
 
     instructions.extend(build_instructions);
+    instructions.push(system_instruction::transfer(&payer.pubkey(), &tip_account, sol_to_lamports(priority_fee.sell_tip_fee)));
 
     let v0_message: v0::Message =
         v0::Message::try_compile(&payer.pubkey(), &instructions, &[], blockhash)?;
