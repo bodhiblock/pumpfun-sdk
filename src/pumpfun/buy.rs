@@ -3,7 +3,7 @@ use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, instruction::Instruction, message::{v0, VersionedMessage}, native_token::sol_to_lamports, pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction, transaction::{Transaction, VersionedTransaction}
 };
 use solana_hash::Hash;
-use spl_associated_token_account::instruction::create_associated_token_account_idempotent;
+use spl_associated_token_account::instruction::create_associated_token_account;
 use tokio::task::JoinHandle;
 use std::{str::FromStr, time::Instant, sync::Arc};
 
@@ -214,7 +214,7 @@ pub fn build_buy_instructions_ex(
     let global_account = get_global_account_cache();
     let buy_amount_with_slippage = calculate_with_slippage_buy(amount_sol, slippage_basis_points);
     let mut instructions = vec![];
-    instructions.push(create_associated_token_account_idempotent(
+    instructions.push(create_associated_token_account(
         &payer.pubkey(),
         &payer.pubkey(),
         mint,
