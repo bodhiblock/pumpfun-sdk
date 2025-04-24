@@ -50,9 +50,12 @@ pub async fn create_and_buy() -> Result<(), Box<dyn std::error::Error>> {
         nextblock_auth_token: "nextblock_api_token".to_string(),
         zeroslot_url: "https://zeroslot.example.com".to_string(),
         zeroslot_auth_token: "zeroslot_api_token".to_string(),
+        temporal_url: "https://temporal.example.com".to_string(),
+        temporal_auth_token: "temporal_api_token".to_string(),
         use_jito: true,
         use_nextblock: false,
         use_zeroslot: false,
+        use_temporal: false,
         priority_fee,
         commitment: CommitmentConfig::processed(),
     };

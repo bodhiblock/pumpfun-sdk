@@ -1,6 +1,6 @@
 use api::api_client::ApiClient;
 use common::{poll_transaction_confirmation, serialize_smart_transaction_and_encode};
-use crate::swqos::jito_grpc::searcher::searcher_service_client::SearcherServiceClient;
+use crate::{constants::accounts::TEMPORAL_TIP_ACCOUNTS, swqos::jito_grpc::searcher::searcher_service_client::SearcherServiceClient};
 use reqwest::Client;
 use searcher_client::{get_searcher_client_no_auth, send_bundle_with_confirmation};
 use serde_json::json;
@@ -39,6 +39,7 @@ pub enum ClientType {
     Jito,
     NextBlock,
     ZeroSlot,
+    Temporal,
 }
 
 pub type FeeClient = dyn FeeClientTrait + Send + Sync + 'static;
@@ -302,9 +303,9 @@ impl ZeroSlotClient {
         // Parse the response
         let response_json: serde_json::Value = response.json().await?;
         if let Some(result) = response_json.get("result") {
-            println!("Transaction sent successfully: {}", result);
+            println!("0Slot Transaction sent successfully: {}", result);
         } else if let Some(error) = response_json.get("error") {
-            eprintln!("Failed to send transaction: {}", error);
+            eprintln!("0Slot Failed to send transaction: {}", error);
         }
 
         let timeout: Duration = Duration::from_secs(10);
@@ -329,7 +330,99 @@ impl ZeroSlotClient {
     }
 
     fn get_tip_account(&self) -> Result<String> {
-        let tip_account = *ZEROSLOT_TIP_ACCOUNTS.choose(&mut rand::rng()).or_else(|| NEXTBLOCK_TIP_ACCOUNTS.first()).unwrap();
+        let tip_account = *ZEROSLOT_TIP_ACCOUNTS.choose(&mut rand::rng()).or_else(|| ZEROSLOT_TIP_ACCOUNTS.first()).unwrap();
+        Ok(tip_account.to_string())
+    }
+}
+
+
+#[derive(Clone)]
+pub struct TemporalClient {
+    pub endpoint: String,
+    pub auth_token: String,
+    pub rpc_client: Arc<SolanaRpcClient>,
+}
+
+#[async_trait::async_trait]
+impl FeeClientTrait for TemporalClient {
+    async fn send_transaction(&self, transaction: &VersionedTransaction) -> Result<Signature, anyhow::Error> {
+        self.send_transaction(transaction).await
+    }
+
+    async fn send_transactions(&self, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>, anyhow::Error> {
+        self.send_transactions(transactions).await
+    }
+
+    fn get_tip_account(&self) -> Result<String> {
+        let tip_account = self.get_tip_account()?;
+        Ok(tip_account)
+    }
+
+    fn get_client_type(&self) -> ClientType {
+        ClientType::Temporal
+    }
+}
+
+impl TemporalClient {
+    pub fn new(rpc_url: String, endpoint: String, auth_token: String) -> Self {
+        let rpc_client = SolanaRpcClient::new(rpc_url);
+        Self { rpc_client: Arc::new(rpc_client), endpoint, auth_token }
+    }
+
+    pub async fn send_transaction(&self, transaction: &VersionedTransaction) -> Result<Signature, anyhow::Error> {
+        let (content, signature) = serialize_smart_transaction_and_encode(transaction, UiTransactionEncoding::Base64).await?;
+        
+        let client = Client::new();
+        let request_body = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sendTransaction",
+            "params": [
+                content,
+                {
+                    "encoding": "base64",
+                    "skipPreflight": true,
+                }
+            ]
+        });
+
+        // Send the request
+        let response = client.post(format!("{}/?c={}", self.endpoint, self.auth_token))
+            .json(&request_body)
+            .send()
+            .await?;
+
+        // Parse the response
+        let response_json: serde_json::Value = response.json().await?;
+        if let Some(result) = response_json.get("result") {
+            println!("Temporal Transaction sent successfully: {}", result);
+        } else if let Some(error) = response_json.get("error") {
+            eprintln!("Temporal Failed to send transaction: {}", error);
+        }
+
+        let timeout: Duration = Duration::from_secs(10);
+        let start_time: Instant = Instant::now();
+        while Instant::now().duration_since(start_time) < timeout {
+            match poll_transaction_confirmation(&self.rpc_client, signature).await {
+                Ok(sig) => return Ok(sig),
+                Err(_) => continue,
+            }
+        }
+
+        Ok(signature)
+    }
+
+    pub async fn send_transactions(&self, transactions: &Vec<VersionedTransaction>) -> Result<Vec<Signature>, anyhow::Error> {
+        let mut signatures = Vec::new();
+        for transaction in transactions {
+            let signature = self.send_transaction(transaction).await?;
+            signatures.push(signature);
+        }
+        Ok(signatures)
+    }
+
+    fn get_tip_account(&self) -> Result<String> {
+        let tip_account = *TEMPORAL_TIP_ACCOUNTS.choose(&mut rand::rng()).or_else(|| TEMPORAL_TIP_ACCOUNTS.first()).unwrap();
         Ok(tip_account.to_string())
     }
 }

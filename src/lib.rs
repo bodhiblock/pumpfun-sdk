@@ -11,7 +11,7 @@ pub mod pumpfun;
 use std::sync::Arc;
 
 use solana_hash::Hash;
-use swqos::{FeeClient, JitoClient, NextBlockClient, ZeroSlotClient};
+use swqos::{FeeClient, JitoClient, NextBlockClient, TemporalClient, ZeroSlotClient};
 use rustls::crypto::{ring::default_provider, CryptoProvider};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -88,6 +88,16 @@ impl PumpFun {
             );
 
             fee_clients.push(Arc::new(nextblock_client));
+        }
+
+        if cluster.clone().use_temporal {
+            let temporal_client = TemporalClient::new(
+                cluster.clone().rpc_url,
+                cluster.clone().temporal_url,
+                cluster.clone().temporal_auth_token
+            );
+
+            fee_clients.push(Arc::new(temporal_client));
         }
 
         Self {

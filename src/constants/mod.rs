@@ -27,7 +27,6 @@ pub mod seeds {
 
 /// Constants related to program accounts and authorities
 pub mod accounts {
-    use std::collections::{HashMap, HashSet};
 
     use solana_sdk::{pubkey, pubkey::Pubkey};
 
@@ -37,7 +36,7 @@ pub mod accounts {
     /// Public key for the Pump.fun AMM program
     pub const PUMPFUN_AMM: Pubkey = pubkey!("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
     pub const PUMPFUN_AMM_GLOBAL: Pubkey = pubkey!("ADyA8hdefvWN2dbGGWFotbzWxrAvLW83WG6QCVXvJKqw");
-    
+
     /// Public key for the MPL Token Metadata program
     pub const MPL_TOKEN_METADATA: Pubkey = pubkey!("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s");
 
@@ -54,10 +53,9 @@ pub mod accounts {
     pub const TOKEN_PROGRAM: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
     pub const WSOL: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
-    
+
     /// Associated Token Program ID
-    pub const ASSOCIATED_TOKEN_PROGRAM: Pubkey =
-        pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+    pub const ASSOCIATED_TOKEN_PROGRAM: Pubkey = pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
     /// Rent Sysvar ID
     pub const RENT: Pubkey = pubkey!("SysvarRent111111111111111111111111111111111");
@@ -73,7 +71,6 @@ pub mod accounts {
         "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
     ];
 
-
     /// Tip accounts
     pub const NEXTBLOCK_TIP_ACCOUNTS: &[&str] = &[
         "NextbLoCkVtMGcV47JzewQdvBpLqT9TxQFozQkN98pE",
@@ -83,7 +80,7 @@ pub mod accounts {
         "neXtBLock1LeC67jYd1QdAa32kbVeubsfPNTJC1V5At",
         "nEXTBLockYgngeRmRrjDV31mGSekVPqZoMGhQEZtPVG",
         "NEXTbLoCkB51HpLBLojQfpyVAMorm3zzKg7w9NFdqid",
-        "nextBLoCkPMgmG8ZgJtABeScP35qLa2AMCNKntAP7Xc"
+        "nextBLoCkPMgmG8ZgJtABeScP35qLa2AMCNKntAP7Xc",
     ];
 
     pub const ZEROSLOT_TIP_ACCOUNTS: &[&str] = &[
@@ -92,6 +89,26 @@ pub mod accounts {
         "ENxTEjSQ1YabmUpXAdCgevnHQ9MHdLv8tzFiuiYJqa13",
         "6rYLG55Q9RpsPGvqdPNJs4z5WTxJVatMB8zV3WJhs5EK",
         "Cix2bHfqPcKcM233mzxbLk14kSggUUiz2A87fJtGivXr",
+    ];
+
+    pub const TEMPORAL_TIP_ACCOUNTS: &[&str] = &[
+        "TEMPaMeCRFAS9EKF53Jd6KpHxgL47uWLcpFArU1Fanq",
+        "noz3jAjPiHuBPqiSPkkugaJDkJscPuRhYnSpbi8UvC4",
+        "noz3str9KXfpKknefHji8L1mPgimezaiUyCHYMDv1GE",
+        "noz6uoYCDijhu1V7cutCpwxNiSovEwLdRHPwmgCGDNo",
+        "noz9EPNcT7WH6Sou3sr3GGjHQYVkN3DNirpbvDkv9YJ",
+        "nozc5yT15LazbLTFVZzoNZCwjh3yUtW86LoUyqsBu4L",
+        "nozFrhfnNGoyqwVuwPAW4aaGqempx4PU6g6D9CJMv7Z",
+        "nozievPk7HyK1Rqy1MPJwVQ7qQg2QoJGyP71oeDwbsu",
+        "noznbgwYnBLDHu8wcQVCEw6kDrXkPdKkydGJGNXGvL7",
+        "nozNVWs5N8mgzuD3qigrCG2UoKxZttxzZ85pvAQVrbP",
+        "nozpEGbwx4BcGp6pvEdAh1JoC2CQGZdU6HbNP1v2p6P",
+        "nozrhjhkCr3zXT3BiT4WCodYCUFeQvcdUkM7MqhKqge",
+        "nozrwQtWhEdrA6W8dkbt9gnUaMs52PdAv5byipnadq3",
+        "nozUacTVWub3cL4mJmGCYjKZTnE9RbdY5AP46iQgbPJ",
+        "nozWCyTPppJjRuw2fpzDhhWbW355fzosWSzrrMYB1Qk",
+        "nozWNju6dY353eMkMqURqwQEoM3SFgEKC6psLCSfUne",
+        "nozxNBgWohjR75vdspfxR5H9ceC7XXH99xpxhVGt3Bb",
     ];
 
     pub const AMM_PROGRAM: Pubkey = pubkey!("675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8");
