@@ -1,4 +1,4 @@
-use super::common::{amm_get_token_out, calculate_with_slippage_buy, get_amm_global_account_cache, get_amm_pool};
+use super::common::{amm_buy_get_token_out, calculate_with_slippage_buy, get_amm_global_account_cache, get_amm_pool};
 use crate::{
     common::{PriorityFee, SolanaRpcClient},
     constants::{self, accounts::WSOL, trade::DEFAULT_SLIPPAGE},
@@ -6,6 +6,7 @@ use crate::{
     swqos::FeeClient,
 };
 use anyhow::anyhow;
+use rand::seq::IndexedRandom;
 use solana_hash::Hash;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
@@ -214,7 +215,7 @@ pub async fn build_buy_instructions(
 
     let pool_base_reserve = u64::from_str(&pool_base_account.unwrap().token_amount.amount)?;
     let pool_quote_reserve = u64::from_str(&pool_quote_account.unwrap().token_amount.amount)?;
-    let buy_amount = amm_get_token_out(pool_quote_reserve, pool_base_reserve, amount_sol);
+    let buy_amount = amm_buy_get_token_out(pool_quote_reserve, pool_base_reserve, amount_sol);
 
     build_buy_instructions_swap(
         payer,
@@ -265,7 +266,7 @@ pub fn build_buy_instructions_swap(
         payer,
         &mint,
         &pool,
-        &global_account.protocol_fee_recipients[0],
+        &global_account.protocol_fee_recipients.choose(&mut rand::rng()).unwrap(),
         instruction::Buy {
             _amount: amount_token,
             _max_sol_cost: amount_sol,

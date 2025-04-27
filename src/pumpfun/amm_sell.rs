@@ -3,10 +3,11 @@ use crate::{
     common::{PriorityFee, SolanaRpcClient},
     constants::{self, accounts::WSOL, trade::DEFAULT_SLIPPAGE},
     instruction,
-    pumpfun::common::amm_get_sol_out,
+    pumpfun::common::amm_sell_get_sol_out,
     swqos::FeeClient,
 };
 use anyhow::anyhow;
+use rand::seq::IndexedRandom;
 use solana_hash::Hash;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
@@ -184,7 +185,7 @@ pub async fn build_sell_instructions(
     let pool_quote_reserve = u64::from_str(&pool_quote_account.unwrap().token_amount.amount)?;
     let user_base_balance = u64::from_str(&user_base_account.unwrap().token_amount.amount)?;
     let amount_token = amount_token.unwrap_or(user_base_balance);
-    let amount_sol = amm_get_sol_out(pool_quote_reserve, pool_base_reserve, amount_token);
+    let amount_sol = amm_sell_get_sol_out(pool_quote_reserve, pool_base_reserve, amount_token);
 
     build_sell_instructions_swap(
         payer,
@@ -222,7 +223,7 @@ pub fn build_sell_instructions_swap(
             payer,
             mint,
             pool,
-            &global_account.protocol_fee_recipients[0],
+            &global_account.protocol_fee_recipients.choose(&mut rand::rng()).unwrap(),
             instruction::Sell {
                 _amount: amount_token,
                 _min_sol_output: amount_sol,

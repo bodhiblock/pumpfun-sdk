@@ -4,7 +4,7 @@ use crate::{
     constants::trade::{DEFAULT_BUY_TIP_FEE, DEFAULT_COMPUTE_UNIT_LIMIT, DEFAULT_COMPUTE_UNIT_PRICE, DEFAULT_SELL_TIP_FEE},
     swqos::FeeClient,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{commitment_config::CommitmentConfig, signature::Keypair};
 
@@ -14,7 +14,7 @@ pub enum FeeType {
     NextBlock,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Cluster {
     pub rpc_url: String,
     pub block_engine_url: String,
@@ -68,7 +68,7 @@ impl Cluster {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 
 pub struct PriorityFee {
     pub unit_limit: u32,
