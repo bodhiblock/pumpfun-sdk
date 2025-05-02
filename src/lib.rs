@@ -292,7 +292,7 @@ impl PumpFun {
     }
 
 
-    pub async fn sell_ex(
+    pub fn sell_ex(
         &self,
         mint: &Pubkey,
         amount_token: u64,
