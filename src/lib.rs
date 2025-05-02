@@ -312,7 +312,7 @@ impl PumpFun {
             slippage_basis_points,
             priority_fee,
             recent_blockhash
-        ).await
+        )
     }
     
     /// Sell tokens by percentage

@@ -32,13 +32,13 @@ pub async fn sell(
     priority_fee: PriorityFee,
 ) -> Result<(), anyhow::Error> {
     let instructions = build_sell_instructions(rpc.clone(), payer.clone(), mint.clone(), amount_token, slippage_basis_points).await?;
-    let transaction = build_sell_transaction(rpc.clone(), &payer, priority_fee, instructions, None).await?;
+    let transaction = build_sell_transaction(rpc.clone(), &payer, priority_fee, instructions).await?;
     rpc.send_and_confirm_transaction(&transaction).await?;
 
     Ok(())
 }
 
-pub async fn sell_ex(
+pub fn sell_ex(
     rpc: Arc<SolanaRpcClient>,
     payer: &Keypair,
     mint: &Pubkey,
@@ -50,9 +50,12 @@ pub async fn sell_ex(
     recent_blockhash: Hash,
 ) -> Result<String, anyhow::Error> {
     let instructions = build_sell_instructions_ex(&payer, &mint, amount_token, amount_sol, close_mint_ata, Some(slippage_basis_points))?;
-    let transaction = build_sell_transaction(rpc.clone(), payer, priority_fee, instructions, Some(recent_blockhash)).await?;
-    rpc.send_and_confirm_transaction(&transaction).await?;
-    Ok(transaction.signatures[0].to_string())
+    let transaction = build_sell_transaction_sync(payer, priority_fee, instructions, recent_blockhash);
+    let tx_hash = transaction.signatures[0].to_string();
+    tokio::spawn(async move {
+        rpc.send_transaction(&transaction).await
+    });
+    Ok(tx_hash)
 }
 
 /// Sell tokens by percentage
@@ -185,7 +188,6 @@ pub async fn build_sell_transaction(
     payer: &Keypair,
     priority_fee: PriorityFee,
     build_instructions: Vec<Instruction>,
-    recent_blockhash: Option<Hash>
 ) -> Result<Transaction, anyhow::Error> {
     let mut instructions = vec![
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
@@ -194,7 +196,7 @@ pub async fn build_sell_transaction(
 
     instructions.extend(build_instructions);
 
-    let recent_blockhash = recent_blockhash.unwrap_or(rpc.get_latest_blockhash().await?);
+    let recent_blockhash = rpc.get_latest_blockhash().await?;
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
         Some(&payer.pubkey()),
@@ -203,6 +205,29 @@ pub async fn build_sell_transaction(
     );
 
     Ok(transaction)
+}
+
+pub fn build_sell_transaction_sync(
+    payer: &Keypair,
+    priority_fee: PriorityFee,
+    build_instructions: Vec<Instruction>,
+    recent_blockhash: Hash
+) -> Transaction {
+    let mut instructions = vec![
+        ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
+        ComputeBudgetInstruction::set_compute_unit_limit(priority_fee.unit_limit),
+    ];
+
+    instructions.extend(build_instructions);
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &[payer],
+        recent_blockhash,
+    );
+
+    transaction
 }
 
 pub fn build_sell_transaction_with_tip(
