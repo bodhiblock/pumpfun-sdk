@@ -32,10 +32,27 @@ pub async fn sell(
     priority_fee: PriorityFee,
 ) -> Result<(), anyhow::Error> {
     let instructions = build_sell_instructions(rpc.clone(), payer.clone(), mint.clone(), amount_token, slippage_basis_points).await?;
-    let transaction = build_sell_transaction(rpc.clone(), payer.clone(), priority_fee, instructions).await?;
+    let transaction = build_sell_transaction(rpc.clone(), &payer, priority_fee, instructions, None).await?;
     rpc.send_and_confirm_transaction(&transaction).await?;
 
     Ok(())
+}
+
+pub async fn sell_ex(
+    rpc: Arc<SolanaRpcClient>,
+    payer: &Keypair,
+    mint: &Pubkey,
+    amount_token: u64,
+    amount_sol: u64,
+    close_mint_ata: bool,
+    slippage_basis_points: u64,
+    priority_fee: PriorityFee,
+    recent_blockhash: Hash,
+) -> Result<String, anyhow::Error> {
+    let instructions = build_sell_instructions_ex(&payer, &mint, amount_token, amount_sol, close_mint_ata, Some(slippage_basis_points))?;
+    let transaction = build_sell_transaction(rpc.clone(), payer, priority_fee, instructions, Some(recent_blockhash)).await?;
+    rpc.send_and_confirm_transaction(&transaction).await?;
+    Ok(transaction.signatures[0].to_string())
 }
 
 /// Sell tokens by percentage
@@ -165,9 +182,10 @@ pub fn sell_with_tip_ex(
 
 pub async fn build_sell_transaction(
     rpc: Arc<SolanaRpcClient>,
-    payer: Arc<Keypair>,
+    payer: &Keypair,
     priority_fee: PriorityFee,
-    build_instructions: Vec<Instruction>
+    build_instructions: Vec<Instruction>,
+    recent_blockhash: Option<Hash>
 ) -> Result<Transaction, anyhow::Error> {
     let mut instructions = vec![
         ComputeBudgetInstruction::set_compute_unit_price(priority_fee.unit_price),
@@ -176,11 +194,11 @@ pub async fn build_sell_transaction(
 
     instructions.extend(build_instructions);
 
-    let recent_blockhash = rpc.get_latest_blockhash().await?;
+    let recent_blockhash = recent_blockhash.unwrap_or(rpc.get_latest_blockhash().await?);
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
         Some(&payer.pubkey()),
-        &[payer.as_ref()],
+        &[payer],
         recent_blockhash,
     );
 

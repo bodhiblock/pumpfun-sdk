@@ -291,6 +291,30 @@ impl PumpFun {
         ).await
     }
 
+
+    pub async fn sell_ex(
+        &self,
+        mint: &Pubkey,
+        amount_token: u64,
+        amount_sol: u64,
+        close_mint_ata: bool,
+        slippage_basis_points: u64,
+        priority_fee: PriorityFee,
+        recent_blockhash: Hash,
+    ) -> Result<String, anyhow::Error> {
+        pumpfun::sell::sell_ex(
+            self.rpc.clone(),
+            &self.payer,
+            mint,
+            amount_token,
+            amount_sol,
+            close_mint_ata,
+            slippage_basis_points,
+            priority_fee,
+            recent_blockhash
+        ).await
+    }
+    
     /// Sell tokens by percentage
     pub async fn sell_by_percent(
         &self,
