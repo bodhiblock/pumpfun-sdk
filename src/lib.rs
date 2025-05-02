@@ -299,7 +299,7 @@ impl PumpFun {
         amount_sol: u64,
         close_mint_ata: bool,
         slippage_basis_points: u64,
-        priority_fee: PriorityFee,
+        priority_fee: Option<PriorityFee>,
         recent_blockhash: Hash,
     ) -> Result<String, anyhow::Error> {
         pumpfun::sell::sell_ex(
@@ -310,7 +310,7 @@ impl PumpFun {
             amount_sol,
             close_mint_ata,
             slippage_basis_points,
-            priority_fee,
+            priority_fee.unwrap_or(self.priority_fee.clone()),
             recent_blockhash
         )
     }
