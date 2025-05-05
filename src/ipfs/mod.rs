@@ -1,12 +1,11 @@
-use std::time::Duration;
-
+use base64::{engine::general_purpose, Engine as _};
+use reqwest::multipart::{Form, Part};
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::time::Duration;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
-use reqwest::Client;
-use reqwest::multipart::{Form, Part};
-use base64::{Engine as _, engine::general_purpose};
-use serde::{Deserialize, Serialize};
 
 /// Metadata structure for a token, matching the format expected by Pump.fun.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +65,8 @@ pub struct CreateTokenMetadata {
 pub async fn create_token_metadata(metadata: CreateTokenMetadata, jwt_token: &str) -> Result<TokenMetadataIPFS, anyhow::Error> {
     let ipfs_url = if metadata.file.starts_with("http") || metadata.metadata_uri.is_some() {
         metadata.file
+    } else if metadata.file.starts_with("data:image/png;base64,") {
+        upload_base64_file(&metadata.file[22..], jwt_token).await?
     } else {
         let base64_string = file_to_base64(&metadata.file).await?;
         upload_base64_file(&base64_string, jwt_token).await?
@@ -87,7 +88,7 @@ pub async fn create_token_metadata(metadata: CreateTokenMetadata, jwt_token: &st
         let token_metadata_ipfs = TokenMetadataIPFS {
             metadata: token_metadata,
             metadata_uri: metadata.metadata_uri.unwrap(),
-        };  
+        };
         Ok(token_metadata_ipfs)
     } else {
         let client = Client::new();
@@ -96,8 +97,8 @@ pub async fn create_token_metadata(metadata: CreateTokenMetadata, jwt_token: &st
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", jwt_token))
             .json(&token_metadata)
-        .send()
-        .await?;
+            .send()
+            .await?;
 
         // 确保请求成功
         if response.status().is_success() {
@@ -107,7 +108,7 @@ pub async fn create_token_metadata(metadata: CreateTokenMetadata, jwt_token: &st
             let token_metadata_ipfs = TokenMetadataIPFS {
                 metadata: token_metadata,
                 metadata_uri: ipfs_url,
-            };  
+            };
             Ok(token_metadata_ipfs)
         } else {
             eprintln!("Error: {:?}", response.status());
@@ -120,7 +121,7 @@ pub async fn upload_base64_file(base64_string: &str, jwt_token: &str) -> Result<
     let decoded_bytes = general_purpose::STANDARD.decode(base64_string)?;
 
     let client = Client::builder()
-        .timeout(Duration::from_secs(120))  // 增加超时时间到120秒
+        .timeout(Duration::from_secs(120)) // 增加超时时间到120秒
         .pool_max_idle_per_host(0) // 禁用连接池
         .pool_idle_timeout(None) // 禁用空闲超时
         .build()?;
@@ -140,7 +141,7 @@ pub async fn upload_base64_file(base64_string: &str, jwt_token: &str) -> Result<
         .await?;
 
     if response.status().is_success() {
-        let response_json: Value = response.json().await.map_err(|e| anyhow::anyhow!("Failed to parse JSON: {}", e))?;  
+        let response_json: Value = response.json().await.map_err(|e| anyhow::anyhow!("Failed to parse JSON: {}", e))?;
         println!("{:#?}", response_json);
         let ipfs_hash = response_json["IpfsHash"].as_str().unwrap();
         let ipfs_url = format!("https://ipfs.io/ipfs/{}", ipfs_hash);
