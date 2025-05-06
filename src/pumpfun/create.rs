@@ -63,7 +63,7 @@ pub async fn create_and_buy(
     amount_sol: u64,
     slippage_basis_points: Option<u64>,
     priority_fee: PriorityFee,
-) -> Result<(), anyhow::Error> {
+) -> Result<String, anyhow::Error> {
     if amount_sol == 0 {
         return Err(anyhow!("Amount cannot be zero"));
     }
@@ -72,7 +72,7 @@ pub async fn create_and_buy(
     let transaction = build_create_and_buy_transaction(rpc.clone(), payer.clone(), mint.clone(), ipfs, amount_sol, slippage_basis_points, priority_fee.clone()).await?;
     rpc.send_and_confirm_transaction(&transaction).await?;
 
-    Ok(())
+    Ok(transaction.signatures[0].to_string())
 }
 
 pub async fn create_and_buy_with_tip(

@@ -130,7 +130,7 @@ impl PumpFun {
         ipfs: TokenMetadataIPFS,
         amount_sol: u64,
         slippage_basis_points: Option<u64>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<String, anyhow::Error> {
         pumpfun::create::create_and_buy(
             self.rpc.clone(),
             self.payer.clone(),
